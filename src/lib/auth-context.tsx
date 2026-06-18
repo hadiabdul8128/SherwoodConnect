@@ -17,7 +17,9 @@ import {
   signOut,
   type User,
 } from "firebase/auth";
+import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import {
+  getDb,
   getFirebaseAuth,
   isFirebaseConfigured,
   MASTER_EMAIL,
@@ -85,11 +87,16 @@ async function readManagerProfile(current: User): Promise<ManagerProfile | null>
     method: "GET",
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
-  });
+  }).catch(() => null);
+
+  if (!response) return readManagerProfileFromFirestore(current);
+
   const data = (await response.json().catch(() => ({}))) as {
     profile?: ManagerProfile | null;
     error?: string;
   };
+
+  if (response.status >= 500) return readManagerProfileFromFirestore(current);
 
   if (!response.ok) {
     throw new Error(data.error || "Could not load profile.");
@@ -110,17 +117,57 @@ async function writeManagerProfile(
       "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
-  });
+  }).catch(() => null);
+
+  if (!response) return writeManagerProfileToFirestore(current, payload);
+
   const data = (await response.json().catch(() => ({}))) as {
     profile?: ManagerProfile;
     error?: string;
   };
+
+  if (response.status >= 500) {
+    return writeManagerProfileToFirestore(current, payload);
+  }
 
   if (!response.ok || !data.profile) {
     throw new Error(data.error || "Could not save profile.");
   }
 
   return data.profile;
+}
+
+async function readManagerProfileFromFirestore(
+  current: User,
+): Promise<ManagerProfile | null> {
+  const ref = doc(getDb(), "managers", current.uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return null;
+
+  const data = snap.data() as Partial<ManagerProfile>;
+  return {
+    email: data.email ?? current.email ?? "",
+    name: data.name ?? "",
+    initials: data.initials ?? "",
+  };
+}
+
+async function writeManagerProfileToFirestore(
+  current: User,
+  payload: Pick<ManagerProfile, "name" | "initials">,
+): Promise<ManagerProfile> {
+  const profile: ManagerProfile = {
+    email: current.email ?? "",
+    ...payload,
+  };
+
+  await setDoc(
+    doc(getDb(), "managers", current.uid),
+    { ...profile, createdAt: serverTimestamp() },
+    { merge: true },
+  );
+
+  return profile;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
