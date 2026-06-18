@@ -75,9 +75,15 @@ export function MasterDashboard() {
   }
 
   useEffect(() => {
-    loadSheet(true);
+    let active = true;
+    queueMicrotask(() => {
+      if (active) void loadSheet(true);
+    });
     const id = window.setInterval(() => loadSheet(false), POLL_INTERVAL_MS);
-    return () => window.clearInterval(id);
+    return () => {
+      active = false;
+      window.clearInterval(id);
+    };
   }, []);
 
   const filteredLogs = useMemo(() => {

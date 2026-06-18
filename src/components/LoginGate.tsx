@@ -196,13 +196,95 @@ function EmailSentView() {
   );
 }
 
+function CompleteEmailLinkView() {
+  const { completeLink, error, pendingEmail, resetLogin } = useAuth();
+  const [email, setEmail] = useState(pendingEmail);
+  const [checking, setChecking] = useState(false);
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setChecking(true);
+    await completeLink(email);
+    setChecking(false);
+  }
+
+  return (
+    <Shell>
+      <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-green-bright/30 bg-green-bright/10 text-green-bright">
+        <ShieldCheck size={22} />
+      </div>
+      <h1 className="mt-5 text-2xl font-semibold tracking-tight">
+        Complete login
+      </h1>
+      <p className="mt-2 text-sm leading-6 text-cream-muted">
+        Enter the email address that received this sign-in link.
+      </p>
+
+      <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+        <label className="relative block">
+          <Mail
+            className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-cream-muted"
+            size={17}
+          />
+          <input
+            className="field w-full"
+            style={{ paddingLeft: "2.6rem" }}
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="you@example.com"
+            autoComplete="email"
+          />
+        </label>
+
+        {error ? <p className="text-sm text-red-300">{error}</p> : null}
+
+        <button
+          type="submit"
+          disabled={checking}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-gold px-5 py-3 text-sm font-semibold text-ink disabled:opacity-50"
+        >
+          {checking ? (
+            <>
+              <RefreshCw size={17} className="animate-spin" />
+              Checking…
+            </>
+          ) : (
+            <>
+              Continue to login
+              <ArrowRight size={17} />
+            </>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={resetLogin}
+          className="inline-flex w-full items-center justify-center rounded-full px-5 py-2 text-sm text-cream-muted transition-colors hover:text-cream"
+        >
+          Request a new link
+        </button>
+      </form>
+    </Shell>
+  );
+}
+
 export function LoginGate() {
-  const { configured, needsProfile, user, sendLink, linkSent, error } = useAuth();
+  const {
+    configured,
+    needsProfile,
+    user,
+    sendLink,
+    linkSent,
+    emailLinkInUrl,
+    error,
+  } = useAuth();
   const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   if (!configured) return <NotConfigured />;
   if (user && needsProfile) return <ProfileSetup />;
+  if (!user && emailLinkInUrl) return <CompleteEmailLinkView />;
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -211,7 +293,7 @@ export function LoginGate() {
     setSubmitting(false);
   }
 
-  if (linkSent) return <EmailSentView />;
+  if (!user && linkSent) return <EmailSentView />;
 
   return (
     <Shell>

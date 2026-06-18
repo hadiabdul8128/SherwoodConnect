@@ -39,9 +39,11 @@ type AuthContextValue = {
   profile: ManagerProfile | null;
   needsProfile: boolean;
   linkSent: boolean;
+  emailLinkInUrl: boolean;
   pendingEmail: string;
   error: string | null;
   sendLink: (email: string) => Promise<void>;
+  completeLink: (email: string) => Promise<boolean>;
   saveProfile: (name: string, initials: string) => Promise<void>;
   resetLogin: () => void;
   refreshSession: (options?: { silent?: boolean }) => Promise<boolean>;
@@ -52,19 +54,31 @@ const STORAGE_EMAIL_KEY = "sherwood:pendingEmail";
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<ManagerProfile | null>(null);
-  const [linkSent, setLinkSent] = useState(false);
-  const [pendingEmail, setPendingEmail] = useState("");
-  const [error, setError] = useState<string | null>(null);
+function getStoredPendingEmail() {
+  if (typeof window === "undefined") return "";
+  return window.localStorage.getItem(STORAGE_EMAIL_KEY) ?? "";
+}
 
+export function AuthProvider({ children }: { children: ReactNode }) {
   const configured = isFirebaseConfigured;
 
+  const [loading, setLoading] = useState(configured);
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<ManagerProfile | null>(null);
+  const [linkSent, setLinkSent] = useState(() =>
+    Boolean(getStoredPendingEmail()),
+  );
+  const [emailLinkInUrl, setEmailLinkInUrl] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState(getStoredPendingEmail);
+  const [error, setError] = useState<string | null>(null);
+
   const readPendingEmail = useCallback(() => {
-    if (typeof window === "undefined") return "";
-    return window.localStorage.getItem(STORAGE_EMAIL_KEY) ?? "";
+    return getStoredPendingEmail();
+  }, []);
+
+  const clearSignInUrl = useCallback(() => {
+    if (typeof window === "undefined") return;
+    window.history.replaceState({}, document.title, window.location.pathname);
   }, []);
 
   const loadProfile = useCallback(async (current: User) => {
@@ -93,9 +107,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!configured) return false;
       const auth = getFirebaseAuth();
       if (typeof window === "undefined") return false;
-      if (!isSignInWithEmailLink(auth, window.location.href)) return false;
+      const isEmailLink = isSignInWithEmailLink(auth, window.location.href);
+      setEmailLinkInUrl(isEmailLink);
+      if (!isEmailLink) return false;
 
-      let email = emailOverride || readPendingEmail();
+      const email = (emailOverride || readPendingEmail()).trim().toLowerCase();
       if (!email) return false;
 
       try {
@@ -103,7 +119,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         window.localStorage.removeItem(STORAGE_EMAIL_KEY);
         setPendingEmail("");
         setLinkSent(false);
-        window.history.replaceState({}, document.title, window.location.pathname);
+        setEmailLinkInUrl(false);
+        clearSignInUrl();
         return true;
       } catch (err) {
         setError(
@@ -112,43 +129,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return false;
       }
     },
-    [configured, readPendingEmail],
+    [clearSignInUrl, configured, readPendingEmail],
   );
 
   useEffect(() => {
     if (!configured) {
-      setLoading(false);
       return;
     }
 
     const storedEmail = readPendingEmail();
-    if (storedEmail) {
-      setPendingEmail(storedEmail);
-      setLinkSent(true);
-    }
 
     const auth = getFirebaseAuth();
+    let cancelled = false;
     let unsub: (() => void) | undefined;
 
-    completeSignInFromUrl(storedEmail || undefined).finally(() => {
-      unsub = onAuthStateChanged(auth, async (next) => {
-        setUser(next);
-        try {
-          if (next) {
-            await loadProfile(next);
-            setLinkSent(false);
-            setPendingEmail("");
-            window.localStorage.removeItem(STORAGE_EMAIL_KEY);
-          } else {
-            setProfile(null);
+    queueMicrotask(() => {
+      completeSignInFromUrl(storedEmail || undefined).finally(() => {
+        if (cancelled) return;
+        unsub = onAuthStateChanged(auth, async (next) => {
+          setUser(next);
+          try {
+            if (next) {
+              await loadProfile(next);
+              setLinkSent(false);
+              setEmailLinkInUrl(false);
+              setPendingEmail("");
+              window.localStorage.removeItem(STORAGE_EMAIL_KEY);
+            } else {
+              setProfile(null);
+            }
+          } finally {
+            setLoading(false);
           }
-        } finally {
-          setLoading(false);
-        }
+        });
       });
     });
 
     return () => {
+      cancelled = true;
       if (unsub) unsub();
     };
   }, [configured, completeSignInFromUrl, loadProfile, readPendingEmail]);
@@ -189,6 +207,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const completeLink = useCallback(
+    async (email: string) => {
+      setError(null);
+      const trimmed = email.trim().toLowerCase();
+      if (!trimmed) {
+        setError("Enter the email address that received this sign-in link.");
+        return false;
+      }
+
+      const completed = await completeSignInFromUrl(trimmed);
+      if (!completed) {
+        setError((current) =>
+          current ||
+          "This sign-in link is no longer valid. Request a new link and try again.",
+        );
+      }
+      return completed;
+    },
+    [completeSignInFromUrl],
+  );
+
   const saveProfile = useCallback(
     async (name: string, initials: string) => {
       if (!user) return;
@@ -210,10 +249,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const resetLogin = useCallback(() => {
     setLinkSent(false);
+    setEmailLinkInUrl(false);
     setPendingEmail("");
     setError(null);
     window.localStorage.removeItem(STORAGE_EMAIL_KEY);
-  }, []);
+    clearSignInUrl();
+  }, [clearSignInUrl]);
 
   const refreshSession = useCallback(
     async (options?: { silent?: boolean }) => {
@@ -230,6 +271,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(current);
         await loadProfile(current);
         setLinkSent(false);
+        setEmailLinkInUrl(false);
         setPendingEmail("");
         window.localStorage.removeItem(STORAGE_EMAIL_KEY);
         return true;
@@ -270,9 +312,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profile,
       needsProfile,
       linkSent,
+      emailLinkInUrl,
       pendingEmail,
       error,
       sendLink,
+      completeLink,
       saveProfile,
       resetLogin,
       refreshSession,
@@ -286,9 +330,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profile,
       needsProfile,
       linkSent,
+      emailLinkInUrl,
       pendingEmail,
       error,
       sendLink,
+      completeLink,
       saveProfile,
       resetLogin,
       refreshSession,

@@ -45,20 +45,28 @@ export function ManagerDashboard() {
 
   useEffect(() => {
     if (!user) return;
-    setLoading(true);
+    let active = true;
+    queueMicrotask(() => {
+      if (active) setLoading(true);
+    });
     const unsub = subscribeLogs(
       "own",
       user.uid,
       (next) => {
+        if (!active) return;
         setLogs(next);
         setLoading(false);
       },
       (err) => {
+        if (!active) return;
         setError(err.message);
         setLoading(false);
       },
     );
-    return () => unsub();
+    return () => {
+      active = false;
+      unsub();
+    };
   }, [user]);
 
   const filtered = useMemo(() => {
