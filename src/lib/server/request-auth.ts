@@ -20,7 +20,7 @@ export async function requireFirebaseUser(
     throw new AuthError("Missing Firebase ID token.");
   }
 
-  const auth = getFirebaseAdminAuth();
+  const auth = await getFirebaseAdminAuth();
 
   try {
     return await auth.verifyIdToken(token);

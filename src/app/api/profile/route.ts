@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { FieldValue } from "firebase-admin/firestore";
 import { normalizeManagerProfile, type ManagerProfile } from "@/lib/profile";
 import { getFirebaseAdminDb } from "@/lib/server/firebase-admin";
 import { AuthError, requireFirebaseUser } from "@/lib/server/request-auth";
@@ -45,7 +44,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: true, cached: true, profile: cached });
     }
 
-    const snap = await getFirebaseAdminDb()
+    const db = await getFirebaseAdminDb();
+    const snap = await db
       .collection("managers")
       .doc(decoded.uid)
       .get();
@@ -72,7 +72,12 @@ export async function PUT(request: Request) {
     const body = (await request.json()) as ProfileBody;
     const profile = validateProfileBody(body, decoded.email ?? "");
 
-    await getFirebaseAdminDb()
+    const [{ FieldValue }, db] = await Promise.all([
+      import("firebase-admin/firestore"),
+      getFirebaseAdminDb(),
+    ]);
+
+    await db
       .collection("managers")
       .doc(decoded.uid)
       .set(

@@ -1,8 +1,8 @@
 import "server-only";
 
-import { cert, getApps, initializeApp, type App } from "firebase-admin/app";
-import { getAuth, type Auth } from "firebase-admin/auth";
-import { getFirestore, type Firestore } from "firebase-admin/firestore";
+import type { App } from "firebase-admin/app";
+import type { Auth } from "firebase-admin/auth";
+import type { Firestore } from "firebase-admin/firestore";
 
 let adminApp: App | undefined;
 let adminAuth: Auth | undefined;
@@ -24,8 +24,10 @@ function readAdminConfig() {
   return { projectId, clientEmail, privateKey };
 }
 
-function getFirebaseAdminApp(): App {
+async function getFirebaseAdminApp(): Promise<App> {
   if (adminApp) return adminApp;
+
+  const { cert, getApps, initializeApp } = await import("firebase-admin/app");
 
   if (getApps().length) {
     adminApp = getApps()[0];
@@ -39,12 +41,18 @@ function getFirebaseAdminApp(): App {
   return adminApp;
 }
 
-export function getFirebaseAdminAuth(): Auth {
-  if (!adminAuth) adminAuth = getAuth(getFirebaseAdminApp());
+export async function getFirebaseAdminAuth(): Promise<Auth> {
+  if (!adminAuth) {
+    const { getAuth } = await import("firebase-admin/auth");
+    adminAuth = getAuth(await getFirebaseAdminApp());
+  }
   return adminAuth;
 }
 
-export function getFirebaseAdminDb(): Firestore {
-  if (!adminDb) adminDb = getFirestore(getFirebaseAdminApp());
+export async function getFirebaseAdminDb(): Promise<Firestore> {
+  if (!adminDb) {
+    const { getFirestore } = await import("firebase-admin/firestore");
+    adminDb = getFirestore(await getFirebaseAdminApp());
+  }
   return adminDb;
 }

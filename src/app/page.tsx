@@ -1,9 +1,22 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useAuth } from "@/lib/auth-context";
 import { LoginGate } from "@/components/LoginGate";
-import { ManagerDashboard } from "@/components/ManagerDashboard";
-import { MasterDashboard } from "@/components/MasterDashboard";
+
+const ManagerDashboard = dynamic(
+  () =>
+    import("@/components/ManagerDashboard").then(
+      (mod) => mod.ManagerDashboard,
+    ),
+  { loading: () => <LoadingScreen /> },
+);
+
+const MasterDashboard = dynamic(
+  () =>
+    import("@/components/MasterDashboard").then((mod) => mod.MasterDashboard),
+  { loading: () => <LoadingScreen /> },
+);
 
 function LoadingScreen() {
   return (
