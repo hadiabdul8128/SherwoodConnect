@@ -94,3 +94,8 @@ body {
 .field::placeholder {
   color: rgba(244, 237, 223, 0.32);
 }
+
+.field option {
+  background: var(--panel);
+  color: var(--cream);
+}

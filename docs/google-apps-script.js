@@ -19,6 +19,7 @@ const DATA_SHEET_NAME = "";
 const DEFAULT_HEADERS = [
   "Organization",
   "Phone Number",
+  "Email",
   "Notes",
   "Meeting Booked",
   "Manager Initials",

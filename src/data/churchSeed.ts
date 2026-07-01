@@ -5,6 +5,7 @@ import type { SheetRow } from "@/lib/googleSheets";
 export const SEED_HEADERS: string[] = [
   "Organization",
   "Phone Number",
+  "Email",
   "Notes",
   "Meeting Booked",
   "Manager Initials"

@@ -15,7 +15,10 @@ import {
   addLog,
   checkOrganizationAvailability,
   DETAIL_COLUMNS,
+  EMAIL_COLUMN,
   LOG_COLUMNS,
+  MEETING_BOOKED_COLUMN,
+  MEETING_BOOKED_OPTIONS,
   ORGANIZATION_COLUMN,
   subscribeLogs,
   type LogData,
@@ -33,6 +36,10 @@ import { AppHeader } from "./AppHeader";
 
 function isLongFormColumn(header: string) {
   return /note|summary|comment|detail|description/i.test(header);
+}
+
+function inputTypeForColumn(header: string) {
+  return header === EMAIL_COLUMN ? "email" : "text";
 }
 
 function emptyEntry(): LogData {
@@ -482,7 +489,22 @@ export function ManagerDashboard() {
               )}
 
               {approvedOrganization ? DETAIL_COLUMNS.map((col) =>
-                isLongFormColumn(col) ? (
+                col === MEETING_BOOKED_COLUMN ? (
+                  <select
+                    key={col}
+                    className="field"
+                    value={entry[col] ?? ""}
+                    onChange={(event) => update(col, event.target.value)}
+                    aria-label={col}
+                  >
+                    <option value="">Meeting Booked</option>
+                    {MEETING_BOOKED_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                ) : isLongFormColumn(col) ? (
                   <textarea
                     key={col}
                     className="field min-h-28"
@@ -493,10 +515,12 @@ export function ManagerDashboard() {
                 ) : (
                   <input
                     key={col}
+                    type={inputTypeForColumn(col)}
                     className="field"
                     value={entry[col] ?? ""}
                     onChange={(event) => update(col, event.target.value)}
                     placeholder={col}
+                    autoComplete={col === EMAIL_COLUMN ? "email" : undefined}
                   />
                 ),
               ) : null}
@@ -545,7 +569,7 @@ export function ManagerDashboard() {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px] text-left text-sm">
+              <table className="w-full min-w-[780px] text-left text-sm">
                 <thead className="text-xs uppercase tracking-[0.16em] text-cream-muted">
                   <tr className="border-b border-line">
                     {LOG_COLUMNS.map((col) => (

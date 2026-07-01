@@ -4,11 +4,20 @@ import { submitToGoogleSheets } from "./googleSheets";
 import type { ManagerProfile } from "./profile";
 
 export const ORGANIZATION_COLUMN = "Organization";
+export const EMAIL_COLUMN = "Email";
+export const MEETING_BOOKED_COLUMN = "Meeting Booked";
+
+export const MEETING_BOOKED_OPTIONS = [
+  "Yes",
+  "No",
+  "In process",
+] as const;
 
 export const DETAIL_COLUMNS = [
   "Phone Number",
+  EMAIL_COLUMN,
   "Notes",
-  "Meeting Booked",
+  MEETING_BOOKED_COLUMN,
 ] as const;
 
 export const LOG_COLUMNS = [ORGANIZATION_COLUMN, ...DETAIL_COLUMNS] as const;
